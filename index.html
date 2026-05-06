@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pollera Henríquez RD – Sistema de Control</title>
+  <style>
+    :root{--primary:#2563eb;--primary-dark:#1d4ed8;--danger:#dc2626;--success:#16a34a;--warning:#d97706;--bg:#f3f4f6;--text:#111827;--card:#fff;--border:#e5e7eb}
+    *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,sans-serif}
+    body{background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+    .hidden{display:none!important}
+    
+    /* Login */
+    #loginScreen{display:flex;align-items:center;justify-content:center;height:100vh;background:linear-gradient(135deg,#1e3a8a,#3b82f6)}
+    .login-card{background:white;padding:2.5rem;border-radius:16px;box-shadow:0 15px 30px rgba(0,0,0,.15);width:100%;max-width:420px;text-align:center}
+    .login-card h1{margin-bottom:.5rem;color:var(--primary);font-size:1.8rem}
+    .login-card p{color:#6b7280;margin-bottom:1.5rem}
+    input,select,button{width:100%;padding:.85rem;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px;font-size:.95rem}
+    input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    button{background:var(--primary);color:white;cursor:pointer;font-weight:600;transition:.2s;border:none}
+    button:hover{background:var(--primary-dark)}
+    .error-msg{color:var(--danger);font-size:.85rem;margin-bottom:.5rem;min-height:1.2rem}
+    
+    /* App Layout */
+    #appContainer{display:flex;height:100vh}
+    #sidebar{width:260px;background:#1f2937;color:white;padding:1.5rem;display:flex;flex-direction:column;box-shadow:4px 0 10px rgba(0,0,0,.1)}
+    #sidebar h2{margin-bottom:2rem;text-align:center;font-size:1.4rem}
+    .nav-item{padding:.8rem 1rem;cursor:pointer;border-radius:8px;margin-bottom:.4rem;transition:background .2s;display:flex;align-items:center;gap:.6rem}
+    .nav-item:hover,.nav-item.active{background:#374151}
+    #mainContent{flex:1;padding:2rem;overflow-y:auto;background:var(--bg)}
+    .section{display:none;animation:fadeIn .3s ease}
+    .section.active{display:block}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+    
+    .card{background:white;padding:1.5rem;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,.03);margin-bottom:1.5rem;border:1px solid var(--border)}
+    table{width:100%;border-collapse:collapse;margin-top:1rem}
+    th,td{padding:.9rem;border-bottom:1px solid var(--border);text-align:left;font-size:.9rem}
+    th{background:#f9fafb;font-weight:600;color:#4b5563}
+    tr:hover{background:#f8fafc}
+    
+    .btn-sm{width:auto;padding:.45rem .9rem;margin:0 .25rem;font-size:.8rem;border-radius:6px}
+    .btn-danger{background:var(--danger)}.btn-danger:hover{background:#b91c1c}
+    .btn-success{background:var(--success)}.btn-success:hover{background:#15803d}
+    .btn-warning{background:var(--warning);color:white}.btn-warning:hover{background:#b45309}
+    
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:0.8rem}
+    .form-group{margin-bottom:0.5rem}
+    .form-group label{display:block;font-size:0.75rem;color:#666;margin-bottom:0.2rem}
+    .form-group input, .form-group select{margin-bottom:0}
+
+    /* Dashboard Grid */
+    .dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.2rem;margin-bottom:1.5rem}
+    .stat-card{background:white;padding:1.2rem;border-radius:10px;text-align:center;box-shadow:0 2px 4px rgba(0,0,0,.04)}
+    .stat-card h3{font-size:1.8rem;margin:.4rem 0;color:var(--primary)}
+    .stat-card p{color:#6b7280;font-size:.85rem}
+    
+    /* Modals */
+    .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(2px)}
+    .modal-content{background:white;padding:1.8rem;border-radius:12px;width:90%;max-width:480px;max-height:85vh;overflow-y:auto;position:relative;box-shadow:0 10px 25px rgba(0,0,0,.2)}
+    .close-modal{position:absolute;top:1rem;right:1rem;cursor:pointer;font-size:1.4rem;background:none;border:none;width:auto;padding:0;margin:0;color:#9ca3af}
+    .close-modal:hover{color:var(--danger)}
+    
+    @media(max-width:768px){#appContainer{flex-direction:column}#sidebar{width:100%;height:auto;flex-direction:row;overflow-x:auto;padding:1rem;box-shadow:none;border-bottom:1px solid var(--border)}#sidebar h2{display:none}.nav-item{white-space:nowrap}#mainContent{padding:1rem}}
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div id="loginScreen">
+    <div class="login-card">
+      <h1>🐔 Pollera Henríquez RD</h1>
+      <p>Sistema de Control de Ventas y Productos</p>
+      <form id="loginForm">
+        <input type="text" id="loginEmail" placeholder="Usuario o Correo" required>
+        <input type="password" id="loginPassword" placeholder="Contraseña" required>
+        <div id="loginError" class="error-msg"></div>
+        <button type="submit">Iniciar Sesión</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="appContainer" class="hidden">
+    <nav id="sidebar">
+      <h2>🐔 Pollera Henríquez</h2>
+      <div class="nav-item active" data-section="dashboard">🏠 Inicio</div>
+      <div class="nav-item" data-section="products">📦 Productos</div>
+      <div class="nav-item" data-section="sales">🧾 Ventas</div>
+      <div class="nav-item" data-section="purchases">📥 Compras</div>
+      <div class="nav-item" data-section="inventory">📋 Inventario</div>
+      <div class="nav-item" data-section="finances">💰 Finanzas</div>
+      <div class="nav-item" data-section="reports">📊 Reportes</div>
+      <div class="nav-item" data-section="users">👥 Usuarios</div>
+      <div style="margin-top:auto">
+        <button id="btnLogout" style="background:#dc2626;width:100%">🚪 Cerrar Sesión</button>
+      </div>
+    </nav>
+
+    <main id="mainContent">
+      <!-- Dashboard -->
+      <section id="section-dashboard" class="section active">
+        <h2>📊 Dashboard</h2>
+        <div class="dashboard-grid">
+          <div class="stat-card"><h3 id="dash-weeklySales">RD$ 0</h3><p>📊 Ventas de la Semana</p></div>
+          <div class="stat-card"><h3 id="dash-lowStock">0</h3><p>⚠️ Stock Bajo</p></div>
+          <div class="stat-card"><h3 id="dash-pending">0</h3><p>💰 Cuentas por Cobrar</p></div>
+        </div>
+        <div class="card"><h3>🕐 Actividad Reciente</h3><p id="recentActivity">Sistema listo. Iniciando sesión...</p></div>
+      </section>
+
+      <!-- Products -->
+      <section id="section-products" class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+          <h2>📦 Gestión de Productos</h2>
+          <button id="btnOpenNewProduct" class="btn-sm btn-success">➕ Nuevo Producto</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Producto</th><th>Tipo</th><th>P. Compra</th><th>P. Venta</th><th>Stock</th><th>Unidad</th><th>Acciones</th></tr></thead>
+            <tbody id="productsTableBody"><tr><td colspan="7">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Sales -->
+      <section id="section-sales" class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+          <h2>🧾 Registro de Ventas</h2>
+          <button id="btnOpenNewSale" class="btn-sm btn-success">➕ Nueva Venta</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>P. Unit.</th><th>Total</th><th>Cliente</th><th class="admin-only hidden">Acciones</th></tr></thead>
+            <tbody id="salesTableBody"><tr><td colspan="6">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Purchases -->
+      <section id="section-purchases" class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+          <h2>📥 Registro de Compras</h2>
+          <button id="btnOpenNewPurchase" class="btn-sm btn-success">➕ Nueva Compra</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>P. Compra</th><th>Total</th><th>Proveedor</th><th class="admin-only hidden">Acciones</th></tr></thead>
+            <tbody id="purchasesTableBody"><tr><td colspan="6">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Inventory -->
+      <section id="section-inventory" class="section">
+        <h2>📋 Control de Inventario</h2>
+        <div class="card">
+          <table>
+            <thead><tr><th>Producto</th><th>Tipo</th><th>Stock Actual</th><th>Unidad</th><th>Valor en Stock</th><th>Estado</th></tr></thead>
+            <tbody id="inventoryTableBody"><tr><td colspan="6">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Finances -->
+      <section id="section-finances" class="section">
+        <h2>💰 Cuentas por Cobrar</h2>
+        <div class="card">
+          <table>
+            <thead><tr><th>Cliente</th><th>Monto</th><th>Total Venta</th><th>Saldo</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="receivablesTableBody"><tr><td colspan="7">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Reports -->
+      <section id="section-reports" class="section">
+        <h2>📊 Reportes</h2>
+        <div class="card">
+          <p>Generación de reportes e impresión. Selecciona un rango de fechas en el módulo de ventas para exportar.</p>
+          <button id="btnPrintReport" class="btn-sm" style="margin-top:1rem">🖨️ Imprimir Vista Actual</button>
+        </div>
+
+        <!-- Reporte Contable -->
+        <div class="card" style="margin-top:1.5rem;">
+          <h3>📈 Reporte Contable (Entradas y Salidas)</h3>
+          <div style="display:flex; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+            <div class="form-group" style="flex:1; min-width:150px;">
+              <label for="report-start-date">Fecha Inicio:</label>
+              <input type="date" id="report-start-date" style="margin-bottom:0;">
+            </div>
+            <div class="form-group" style="flex:1; min-width:150px;">
+              <label for="report-end-date">Fecha Fin:</label>
+              <input type="date" id="report-end-date" style="margin-bottom:0;">
+            </div>
+            <button id="btnGenerateAccountingReport" class="btn-sm" style="align-self:flex-end; margin-bottom:0.5rem;">Generar Reporte</button>
+          </div>
+          
+          <div id="accountingReportContainer">
+            <table>
+              <thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Cantidad</th><th>P. Unit.</th><th>Total</th><th>Cliente/Proveedor</th></tr></thead>
+              <tbody id="accountingReportTableBody"><tr><td colspan="7">Selecciona un rango de fechas y genera el reporte.</td></tr></tbody>
+              <tfoot>
+                <tr><td colspan="5" style="text-align:right; font-weight:bold;">Total Ventas:</td><td id="report-total-sales" style="font-weight:bold; color:var(--success);">RD$ 0.00</td><td></td></tr>
+                <tr><td colspan="5" style="text-align:right; font-weight:bold;">Total Compras:</td><td id="report-total-purchases" style="font-weight:bold; color:var(--danger);">RD$ 0.00</td><td></td></tr>
+                <tr><td colspan="5" style="text-align:right; font-weight:bold;">Balance Neto:</td><td id="report-net-balance" style="font-weight:bold;">RD$ 0.00</td><td></td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+        <!-- Zona de Peligro -->
+        <div class="card admin-only hidden" style="border: 1px solid var(--danger); background: #fff5f5;">
+          <h3 style="color:var(--danger)">⚠️ Zona de Peligro (Solo Admin)</h3>
+          <p style="margin-bottom:1rem; font-size:0.9rem">Estas acciones borrarán <strong>todos</strong> los registros de la tabla seleccionada. Esta acción no se puede deshacer.</p>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <button class="btn-sm btn-danger" id="btnClearSales">Borrar todas las Ventas</button>
+            <button class="btn-sm btn-danger" id="btnClearPurchases">Borrar todas las Compras</button>
+            <button class="btn-sm btn-danger" id="btnClearProducts">Borrar todos los Productos</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users -->
+      <section id="section-users" class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+          <h2>👥 Gestión de Usuarios</h2>
+          <button id="btnOpenNewUser" class="btn-sm btn-success">➕ Nuevo Usuario</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Usuario</th><th>Rol</th><th>Permisos</th><th class="admin-only hidden">Acciones</th></tr></thead>
+            <tbody id="usersTableBody"><tr><td colspan="3">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODALS -->
+  <div id="modal-new-product" class="modal hidden">
+    <div class="modal-content">
+      <button class="close-modal" data-close="modal-new-product">✕</button>
+      <h3 id="product-modal-title">➕ Nuevo Producto</h3>
+      <form id="form-new-product">
+        <input type="hidden" id="prod-id">
+        <input type="text" id="prod-name" placeholder="Nombre del Producto" required>
+        <select id="prod-type"><option value="Pollo entero">Pollo entero</option><option value="Pollo al detalle">Pollo al detalle</option><option value="Patas">Patas</option><option value="Molleja mixto pescueso">Molleja mixto pescueso</option><option value="Menuditos">Menuditos</option><option value="Hígado">Hígado</option><option value="Otro">Otro</option></select>
+        <input type="number" step="0.01" id="prod-cost" placeholder="Precio de Compra (RD$)" required>
+        <input type="number" step="0.01" id="prod-price" placeholder="Precio de Venta (RD$)" required>
+        <input type="number" step="0.01" id="prod-stock" placeholder="Stock Inicial" required>
+        <select id="prod-unit"><option value="Libras">Libras</option><option value="Unidades">Unidades</option></select>
+        <button type="submit">💾 Guardar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-new-sale" class="modal hidden">
+    <div class="modal-content">
+      <button class="close-modal" data-close="modal-new-sale">✕</button>
+      <h3 style="margin-bottom:1rem">🧾 Registrar Venta</h3>
+      <form id="form-new-sale">
+        <div class="form-group">
+          <label>Producto:</label>
+          <select id="sale-product" required></select>
+          <div id="sale-stock-display" style="font-size:0.75rem; color:var(--primary); margin-top:0.2rem; font-weight:bold"></div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Cantidad:</label>
+            <input type="number" step="0.01" id="sale-qty" placeholder="0.00" required>
+          </div>
+          <div class="form-group">
+            <label>Precio unitario:</label>
+            <input type="number" step="0.01" id="sale-price" placeholder="RD$ 0.00" required>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Monto a comprar:</label>
+            <input type="number" id="sale-total" value="0.00" readonly style="background:#f3f4f6; font-weight:bold; color:var(--primary)">
+          </div>
+          <div class="form-group">
+            <label>Método de pago:</label>
+            <select id="sale-payment">
+              <option value="efectivo">💵 Efectivo</option>
+
+              <option value="credito">📝 Crédito</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="cash-fields" class="form-grid">
+          <div class="form-group">
+            <label>Monto recibido:</label>
+            <input type="number" step="0.01" id="sale-cash-received" placeholder="RD$ 0.00">
+          </div>
+          <div class="form-group">
+            <label>Monto a devolver:</label>
+            <input type="number" id="sale-change" value="0.00" readonly style="background:#f3f4f6; color:var(--success); font-weight:bold">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <input type="text" id="sale-client" placeholder="Nombre Cliente (si es crédito)" style="margin-top:0.5rem">
+        </div>
+        <button type="submit" style="margin-top:0.5rem">🧾 Registrar Venta</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-new-purchase" class="modal hidden">
+    <div class="modal-content">
+      <button class="close-modal" data-close="modal-new-purchase">✕</button>
+      <h3>📥 Registrar Compra</h3>
+      <form id="form-new-purchase">
+        <select id="purchase-product" required></select>
+        <input type="number" step="0.01" id="purchase-qty" placeholder="Cantidad" required>
+        <input type="number" step="0.01" id="purchase-price" placeholder="Precio Unit. (RD$)" required>
+        <input type="text" id="purchase-provider" placeholder="Proveedor">
+        <button type="submit">📥 Registrar Compra</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-new-user" class="modal hidden">
+    <div class="modal-content">
+      <button class="close-modal" data-close="modal-new-user">✕</button>
+      <h3>👤 Nuevo Usuario</h3>
+      <form id="form-new-user">
+        <input type="email" id="user-email" placeholder="Correo electrónico" required>
+        <input type="password" id="user-password" placeholder="Contraseña" required>
+        <input type="text" id="user-username" placeholder="Nombre de Usuario" required>
+        <select id="user-role"><option value="user">Usuario</option><option value="admin">Administrador</option></select>
+        
+        <div class="form-group" style="margin-top:1rem;">
+          <label>Permisos de Menú:</label>
+          <div id="user-permissions-checkboxes" style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.5rem;">
+            <label><input type="checkbox" class="user-permission-checkbox" value="dashboard" checked> 🏠 Inicio</label>
+            <label><input type="checkbox" class="user-permission-checkbox" value="products" checked> 📦 Productos</label>
+            <label><input type="checkbox" class="user-permission-checkbox" value="sales" checked> 🧾 Ventas</label>
+            <label><input type="checkbox" class="user-permission-checkbox" value="purchases" checked> 📥 Compras</label>
+            <label><input type="checkbox" class="user-permission-checkbox" value="inventory" checked> 📋 Inventario</label>
+            <label><input type="checkbox" class="user-permission-checkbox" value="finances" checked> 💰 Finanzas</label>
+            <label><input type="checkbox" class="user-permission-checkbox" value="reports" checked> 📊 Reportes</label>
+            <label><input type="checkbox" class="user-permission-checkbox" value="users" checked> 👥 Usuarios</label>
+          </div>
+        </div>
+        <button type="submit">💾 Guardar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCRIPT PRINCIPAL -->
+  <script type="module">
+    import {
+      signIn, signOut, getCurrentUser, getProducts, upsertProduct, deleteProduct,
+      getSales, registerSale, updateSale, deleteSale, getPurchases, registerPurchase, updatePurchase, deletePurchase,
+      getAccountsReceivable, updateAccountReceivable, deleteAccountReceivable, getUsersWithProfiles, updateUserProfile, deleteUserProfile, signUp, truncateTable
+    } from './supabase_service.js';
+
+    const loginScreen = document.getElementById('loginScreen');
+    const appContainer = document.getElementById('appContainer');
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    const btnLogout = document.getElementById('btnLogout');
+    let currentUserProfile = null;
+    let isAdmin = false;
+
+    async function checkAuth() {
+      const authData = await getCurrentUser();
+      if (authData) {
+        loginScreen.classList.add('hidden');
+        appContainer.classList.remove('hidden');
+        currentUserProfile = authData.profile;
+        // Fallback de seguridad: El dueño del correo siempre es Admin
+        isAdmin = (currentUserProfile?.role === 'admin') || (authData.user.email.toLowerCase() === 'ministrylion@gmail.com');
+
+        document.getElementById('recentActivity').textContent = `Sesión iniciada como ${currentUserProfile?.username || authData.user.email}`;
+        
+        if (isAdmin) {
+          document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
+          // Los administradores ven todos los menús
+          document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('hidden'));
+        } else {
+          // Ocultar todos los menús por defecto y mostrar solo los permitidos
+          document.querySelectorAll('.nav-item').forEach(nav => nav.classList.add('hidden'));
+          currentUserProfile?.permissions?.forEach(perm => {
+            document.querySelector(`.nav-item[data-section="${perm}"]`)?.classList.remove('hidden');
+          });
+        }
+        
+        loadAllData();
+      } else {
+        loginScreen.classList.remove('hidden');
+        appContainer.classList.add('hidden');
+      }
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginError.textContent = 'Verificando...';
+      let emailInput = document.getElementById('loginEmail').value.trim();
+      if (emailInput.toLowerCase() === 'admin') emailInput = 'ministrylion@gmail.com';
+      try {
+        const { error } = await signIn(
+          emailInput,
+          document.getElementById('loginPassword').value
+        );
+        if (error) throw error;
+        checkAuth();
+      } catch (err) {
+        loginError.textContent = err.message || 'Error al iniciar sesión.';
+      }
+    });
+
+    btnLogout.addEventListener('click', async () => {
+      await signOut();
+      window.location.reload();
+    });
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        item.classList.add('active');
+        document.getElementById('section-' + item.dataset.section).classList.add('active');
+      });
+    });
+
+    document.querySelectorAll('.close-modal').forEach(btn => {
+      btn.addEventListener('click', () => document.getElementById(btn.dataset.close).classList.add('hidden'));
+    });
+    window.addEventListener('click', (e) => { if (e.target.classList.contains('modal')) e.target.classList.add('hidden'); });
+
+    document.getElementById('btnOpenNewProduct').addEventListener('click', () => {
+      document.getElementById('product-modal-title').textContent = '➕ Nuevo Producto';
+      document.getElementById('form-new-product').reset();
+      document.getElementById('prod-id').value = '';
+      document.getElementById('modal-new-product').classList.remove('hidden');
+    });
+    document.getElementById('btnOpenNewSale').addEventListener('click', () => document.getElementById('modal-new-sale').classList.remove('hidden'));
+    document.getElementById('btnOpenNewPurchase').addEventListener('click', () => document.getElementById('modal-new-purchase').classList.remove('hidden'));
+    document.getElementById('btnOpenNewUser').addEventListener('click', () => document.getElementById('modal-new-user').classList.remove('hidden'));
+
+    async function loadAllData() {
+      await Promise.all([loadProducts(), loadSales(), loadPurchases(), loadInventory(), loadReceivables(), loadUsers()]);
+      updateDashboard();
+    }
+
+    async function loadProducts() {
+      const products = await getProducts();
+      const tbody = document.getElementById('productsTableBody');
+      const saleSelect = document.getElementById('sale-product');
+      const purchaseSelect = document.getElementById('purchase-product');
+      
+      tbody.innerHTML = products.length ? '' : '<tr><td colspan="7">No hay productos</td></tr>';
+      saleSelect.innerHTML = '<option value="">Seleccionar producto</option>';
+      purchaseSelect.innerHTML = '<option value="">Seleccionar producto</option>';
+
+      products.forEach(p => {
+        let actions = isAdmin ? `
+          <button class="btn-sm btn-warning btn-edit-product" 
+            data-id="${p.id}" data-name="${p.name}" data-type="${p.type}" 
+            data-cost="${p.cost}" data-price="${p.price}" 
+            data-stock="${p.stock}" data-unit="${p.unit}">Editar</button>
+          <button class="btn-sm btn-danger btn-delete-product" data-id="${p.id}">Eliminar</button>
+        ` : '-';
+
+        tbody.innerHTML += `<tr><td>${p.name}</td><td>${p.type}</td><td>RD$ ${p.cost}</td><td>RD$ ${p.price}</td><td>${p.stock}</td><td>${p.unit}</td><td>${actions}</td></tr>`;
+        
+        const opt = `<option value="${p.id}" data-price="${p.price}" data-stock="${p.stock}">${p.name} (Stock: ${p.stock})</option>`;
+        saleSelect.innerHTML += opt;
+        purchaseSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+      });
+
+      if (isAdmin) {
+        // Eventos para Editar
+        tbody.querySelectorAll('.btn-edit-product').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.getElementById('product-modal-title').textContent = '✏️ Editar Producto';
+            document.getElementById('prod-id').value = btn.dataset.id;
+            document.getElementById('prod-name').value = btn.dataset.name;
+            document.getElementById('prod-type').value = btn.dataset.type;
+            document.getElementById('prod-cost').value = btn.dataset.cost;
+            document.getElementById('prod-price').value = btn.dataset.price;
+            document.getElementById('prod-stock').value = btn.dataset.stock;
+            document.getElementById('prod-unit').value = btn.dataset.unit;
+            document.getElementById('modal-new-product').classList.remove('hidden');
+          });
+        });
+
+        // Eventos para Eliminar
+        tbody.querySelectorAll('.btn-delete-product').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (confirm(`¿Eliminar "${btn.parentElement.parentElement.cells[0].textContent}" permanentemente?`)) {
+              try {
+                await deleteProduct(btn.dataset.id);
+                loadAllData();
+              } catch(err) { alert('Error: ' + err.message); }
+            }
+          });
+        });
+      }
+    }
+
+    async function loadSales() {
+      const sales = await getSales();
+      const tbody = document.getElementById('salesTableBody');
+      tbody.innerHTML = sales.length ? '' : `<tr><td colspan="${isAdmin ? 7 : 6}">No hay ventas</td></tr>`;
+      
+      sales.forEach(s => {
+        let actions = isAdmin ? `<td>
+          <button class="btn-sm btn-warning btn-edit-sale" data-id="${s.id}" data-client="${s.credit_client_name || ''}">Editar</button>
+          <button class="btn-sm btn-danger btn-delete-sale" data-id="${s.id}">Eliminar</button>
+        </td>` : '';
+        tbody.innerHTML += `<tr><td>${new Date(s.sale_date).toLocaleDateString()}</td><td>${s.products?.name || 'N/A'}</td><td>${s.qty}</td><td>RD$ ${s.price}</td><td>RD$ ${s.total}</td><td>${s.credit_client_name || '-'}</td>${actions}</tr>`;
+      });
+
+      if (isAdmin) {
+        tbody.querySelectorAll('.btn-edit-sale').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const newName = prompt('Editar nombre del cliente:', btn.dataset.client);
+            if (newName !== null) {
+              try {
+                await updateSale(btn.dataset.id, { credit_client_name: newName });
+                loadSales();
+              } catch(err) { alert('Error: ' + err.message); }
+            }
+          });
+        });
+
+        tbody.querySelectorAll('.btn-delete-sale').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (confirm('¿Eliminar esta venta? El stock será devuelto automáticamente al producto.')) {
+              try {
+                await deleteSale(btn.dataset.id);
+                loadAllData();
+              } catch(err) { alert('Error: ' + err.message); }
+            }
+          });
+        });
+      }
+    }
+
+    async function loadPurchases() {
+      const purchases = await getPurchases();
+      const tbody = document.getElementById('purchasesTableBody');
+      tbody.innerHTML = purchases.length ? '' : `<tr><td colspan="${isAdmin ? 7 : 6}">No hay compras</td></tr>`;
+      
+      purchases.forEach(p => {
+        let actions = isAdmin ? `<td>
+          <button class="btn-sm btn-warning btn-edit-purchase" data-id="${p.id}" data-provider="${p.provider || ''}">Editar</button>
+          <button class="btn-sm btn-danger btn-delete-purchase" data-id="${p.id}">Eliminar</button>
+        </td>` : '';
+        tbody.innerHTML += `<tr><td>${new Date(p.purchase_date).toLocaleDateString()}</td><td>${p.products?.name || 'N/A'}</td><td>${p.qty}</td><td>RD$ ${p.price}</td><td>RD$ ${p.total}</td><td>${p.provider || '-'}</td>${actions}</tr>`;
+      });
+
+      if (isAdmin) {
+        tbody.querySelectorAll('.btn-edit-purchase').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const newProvider = prompt('Editar proveedor:', btn.dataset.provider);
+            if (newProvider !== null) {
+              try {
+                await updatePurchase(btn.dataset.id, { provider: newProvider });
+                loadPurchases();
+              } catch(err) { alert('Error: ' + err.message); }
+            }
+          });
+        });
+
+        tbody.querySelectorAll('.btn-delete-purchase').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (confirm('¿Eliminar esta compra? El stock será descontado automáticamente del producto.')) {
+              try {
+                await deletePurchase(btn.dataset.id);
+                loadAllData();
+              } catch(err) { alert('Error: ' + err.message); }
+            }
+          });
+        });
+      }
+    }
+
+    async function loadInventory() {
+      const products = await getProducts();
+      const tbody = document.getElementById('inventoryTableBody');
+      tbody.innerHTML = products.length ? '' : '<tr><td colspan="6">No hay productos</td></tr>';
+      products.forEach(p => {
+        const value = (p.stock * p.price).toFixed(2);
+        const status = p.stock < 5 ? '<span style="color:var(--danger)">⚠️ Bajo</span>' : '<span style="color:var(--success)">✅ OK</span>';
+        tbody.innerHTML += `<tr><td>${p.name}</td><td>${p.type}</td><td>${p.stock}</td><td>${p.unit}</td><td>RD$ ${value}</td><td>${status}</td></tr>`;
+      });
+    }
+
+    async function loadReceivables() {
+      const receivables = await getAccountsReceivable();
+      const tbody = document.getElementById('receivablesTableBody');
+      tbody.innerHTML = receivables.length ? '' : '<tr><td colspan="7">No hay cuentas por cobrar</td></tr>';
+      receivables.forEach(r => {
+        let actions = r.status === 'pending' ? `<button class="btn-sm btn-success btn-pay" data-id="${r.id}" data-balance="${r.balance}">Abonar</button>` : '-';
+        if (isAdmin) {
+          actions += `<button class="btn-sm btn-danger btn-delete-ar" data-id="${r.id}">Eliminar</button>`;
+        }
+        tbody.innerHTML += `<tr><td>${r.client_name}</td><td>RD$ ${r.amount}</td><td>RD$ ${r.sales?.total || 0}</td><td>RD$ ${r.balance}</td><td>${new Date(r.created_at).toLocaleDateString()}</td><td>${r.status === 'pending' ? 'Pendiente' : 'Pagado'}</td><td>${actions}</td></tr>`;
+      });
+      
+      tbody.querySelectorAll('.btn-delete-ar').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (confirm('¿Eliminar este registro de cuenta por cobrar?')) {
+            try {
+              await deleteAccountReceivable(btn.dataset.id);
+              loadReceivables();
+            } catch(err) { alert('Error: ' + err.message); }
+          }
+        });
+      });
+
+      tbody.querySelectorAll('.btn-pay').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const amount = prompt('Monto del abono (RD$):', btn.dataset.balance);
+          if (amount && !isNaN(amount) && amount > 0) {
+            const newBalance = Math.max(0, btn.dataset.balance - parseFloat(amount));
+            await updateAccountReceivable(btn.dataset.id, { balance: newBalance, status: newBalance === 0 ? 'paid' : 'pending' });
+            loadReceivables();
+          }
+        });
+      });
+    }
+
+    async function loadUsers() {
+      const users = await getUsersWithProfiles();
+      const tbody = document.getElementById('usersTableBody');
+      tbody.innerHTML = users.length ? '' : '<tr><td colspan="3">No hay usuarios</td></tr>';
+      users.forEach(u => {
+        let actions = isAdmin ? `<button class="btn-sm btn-danger btn-delete-user" data-id="${u.id}">Eliminar</button>` : '-';
+        tbody.innerHTML += `<tr><td>${u.username}</td><td>${u.role}</td><td>${u.permissions?.join(', ') || 'Todos'}</td><td class="admin-only">${actions}</td></tr>`;
+      });
+      tbody.querySelectorAll('.btn-delete-user').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (confirm('¿Eliminar este perfil de usuario?')) {
+            try {
+              await deleteUserProfile(btn.dataset.id);
+              loadUsers();
+            } catch(err) { alert('Error: ' + err.message); }
+          }
+        });
+      });
+    }
+
+    async function loadAccountingReport() {
+      const today = new Date();
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+      const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+      document.getElementById('report-start-date').value = firstDayOfMonth;
+      document.getElementById('report-end-date').value = lastDayOfMonth;
+      
+      await generateAccountingReport();
+    }
+    async function generateAccountingReport() {
+      const startDate = document.getElementById('report-start-date').value;
+      const endDate = document.getElementById('report-end-date').value;
+      if (!startDate || !endDate) {
+        alert('Por favor, selecciona un rango de fechas.');
+        return;
+      }
+      const [sales, purchases] = await Promise.all([
+        getSales(),
+        getPurchases()
+      ]);
+      const reportItems = [];
+      let totalSalesAmount = 0;
+      let totalPurchasesAmount = 0;
+      sales.forEach(s => {
+        const saleDate = new Date(s.sale_date);
+        if (saleDate >= new Date(startDate) && saleDate <= new Date(endDate + 'T23:59:59')) {
+          reportItems.push({
+            date: saleDate,
+            type: 'Venta',
+            productName: s.products?.name || 'N/A',
+            qty: s.qty, // Esto es el peso calculado
+            unitPrice: s.price, // Precio por libra
+            totalAmount: s.total, // Dinero ingresado
+            partyName: s.credit_client_name || 'Consumidor Final'
+          });
+          totalSalesAmount += Number(s.total);
+        }
+      });
+      purchases.forEach(p => {
+        const purchaseDate = new Date(p.purchase_date);
+        if (purchaseDate >= new Date(startDate) && purchaseDate <= new Date(endDate + 'T23:59:59')) {
+          reportItems.push({
+            date: purchaseDate,
+            type: 'Compra',
+            productName: p.products?.name || 'N/A',
+            qty: p.qty,
+            unitPrice: p.price,
+            totalAmount: p.total,
+            partyName: p.provider || 'Proveedor Desconocido'
+          });
+          totalPurchasesAmount += Number(p.total);
+        }
+      });
+      reportItems.sort((a, b) => a.date - b.date);
+      const tbody = document.getElementById('accountingReportTableBody');
+      tbody.innerHTML = reportItems.length ? reportItems.map(item => `
+        <tr>
+          <td>${item.date.toLocaleDateString()}</td>
+          <td style="color:${item.type === 'Venta' ? 'var(--success)' : 'var(--danger)'}; font-weight:bold;">${item.type}</td>
+          <td>${item.productName}</td><td>${item.qty.toFixed(2)}</td><td>RD$ ${item.unitPrice.toFixed(2)}</td>
+          <td>RD$ ${item.totalAmount.toFixed(2)}</td><td>${item.partyName}</td>
+        </tr>`).join('') : '<tr><td colspan="7">No hay registros para el rango de fechas seleccionado.</td></tr>';
+      document.getElementById('report-total-sales').textContent = `RD$ ${totalSalesAmount.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+      document.getElementById('report-total-purchases').textContent = `RD$ ${totalPurchasesAmount.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+      document.getElementById('report-net-balance').textContent = `RD$ ${(totalSalesAmount - totalPurchasesAmount).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+    }
+    async function updateDashboard() {
+      const [sales, products, receivables] = await Promise.all([
+        getSales(), 
+        getProducts(), 
+        getAccountsReceivable()
+      ]);
+
+      // 1. Calcular Ventas de la Semana
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const weeklyTotal = sales
+        .filter(s => new Date(s.sale_date) >= oneWeekAgo)
+        .reduce((sum, s) => sum + Number(s.total), 0);
+      document.getElementById('dash-weeklySales').textContent = `RD$ ${weeklyTotal.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+
+      // 2. Notificación de Stock Bajo (Agotándose)
+      const lowStockItems = products.filter(p => p.unit === 'Libras' && Number(p.stock) < 5);
+      const dashLowStock = document.getElementById('dash-lowStock');
+      dashLowStock.textContent = lowStockItems.length;
+      dashLowStock.style.color = lowStockItems.length > 0 ? 'var(--danger)' : 'var(--primary)';
+
+      // 3. Cuentas Pendientes
+      document.getElementById('dash-pending').textContent = receivables.filter(r => r.status === 'pending').length;
+
+      // 4. Mensaje de Notificación en Inicio
+      const activityBox = document.getElementById('recentActivity');
+      let statusHtml = `Sesión iniciada como <strong>${currentUserProfile?.username || 'Administrador'}</strong>.<br>`;
+      if (lowStockItems.length > 0) {
+        statusHtml += `<span style="color:var(--danger); font-weight:bold">⚠️ ¡Atención! Hay ${lowStockItems.length} producto(s) agotándose en el inventario. Revisa la sección de Productos.</span>`;
+      } else {
+        statusHtml += `<span style="color:var(--success)">✅ Todo bajo control: el inventario tiene existencias suficientes.</span>`;
+      }
+      activityBox.innerHTML = statusHtml;
+    }
+
+    // Formularios
+    document.getElementById('form-new-product').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const productData = {
+        name: document.getElementById('prod-name').value,
+        type: document.getElementById('prod-type').value,
+        cost: parseFloat(document.getElementById('prod-cost').value),
+        price: parseFloat(document.getElementById('prod-price').value),
+        stock: parseFloat(document.getElementById('prod-stock').value),
+        unit: document.getElementById('prod-unit').value
+      };
+      const id = document.getElementById('prod-id').value;
+      if (id) productData.id = id;
+
+      await upsertProduct(productData);
+      document.getElementById('modal-new-product').classList.add('hidden');
+      e.target.reset();
+      loadAllData();
+    });
+
+    document.getElementById('form-new-sale').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const productSelect = document.getElementById('sale-product');
+        const selectedOption = productSelect.options[productSelect.selectedIndex];
+        const availableStock = parseFloat(selectedOption.dataset.stock || 0);
+        
+        const moneyInput = parseFloat(document.getElementById('sale-qty').value); // Dinero (ej: 300)
+        const price = parseFloat(document.getElementById('sale-price').value);
+        const weightToSell = price !== 0 ? moneyInput / price : 0; // Libras resultantes (ej: 3.75)
+
+        if (weightToSell > availableStock) {
+          throw new Error(`Stock insuficiente. Para vender RD$${moneyInput} necesitas ${weightToSell.toFixed(2)} lbs, pero solo hay ${availableStock} lbs.`);
+        }
+
+        const cashReceived = parseFloat(document.getElementById('sale-cash-received').value || 0);
+        const change = parseFloat(document.getElementById('sale-change').value || 0);
+
+        await registerSale({
+          product_id: productSelect.value,
+          qty: weightToSell, // Enviamos el peso a la DB para restar el stock correctamente
+          price, 
+          total: moneyInput, // El total de la venta es el dinero ingresado
+          payment_type: document.getElementById('sale-payment').value,
+          cash: cashReceived,
+          change: change,
+          credit_client_name: document.getElementById('sale-client').value || null
+        });
+        document.getElementById('modal-new-sale').classList.add('hidden');
+        e.target.reset();
+        loadAllData();
+      } catch(err) { alert('Error: ' + err.message); }
+    });
+
+    // Cálculos automáticos de la venta
+    function calculateSaleTotals() {
+      const qty = parseFloat(document.getElementById('sale-qty').value) || 0;
+      const price = parseFloat(document.getElementById('sale-price').value) || 0;
+      const total = price !== 0 ? qty / price : 0;
+      
+      document.getElementById('sale-total').value = total.toFixed(2);
+      
+      const received = parseFloat(document.getElementById('sale-cash-received').value) || 0;
+      if (received > 0) {
+        document.getElementById('sale-change').value = Math.max(0, received - qty).toFixed(2);
+      } else {
+        document.getElementById('sale-change').value = "0.00";
+      }
+    }
+
+    document.getElementById('sale-qty').addEventListener('input', calculateSaleTotals);
+    document.getElementById('sale-price').addEventListener('input', calculateSaleTotals);
+    document.getElementById('sale-cash-received').addEventListener('input', calculateSaleTotals);
+
+    // Mostrar/ocultar campos según método de pago
+    document.getElementById('sale-payment').addEventListener('change', function() {
+      const cashFields = document.getElementById('cash-fields');
+      const clientField = document.getElementById('sale-client');
+      
+      if (this.value === 'efectivo') {
+        cashFields.classList.remove('hidden');
+        clientField.classList.add('hidden');
+      } else if (this.value === 'credito') {
+        cashFields.classList.add('hidden');
+        clientField.classList.remove('hidden');
+      } else {
+        cashFields.classList.add('hidden');
+        clientField.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('form-new-purchase').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const qty = parseFloat(document.getElementById('purchase-qty').value);
+        const price = parseFloat(document.getElementById('purchase-price').value);
+        await registerPurchase({
+          product_id: document.getElementById('purchase-product').value,
+          qty, price, total: qty * price,
+          provider: document.getElementById('purchase-provider').value
+        });
+        document.getElementById('modal-new-purchase').classList.add('hidden');
+        e.target.reset();
+        loadAllData();
+      } catch(err) { alert('Error: ' + err.message); }
+    });
+
+    document.getElementById('form-new-user').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const selectedPermissions = Array.from(document.querySelectorAll('.user-permission-checkbox:checked'))
+                                         .map(cb => cb.value);
+
+        await signUp(
+          document.getElementById('user-username').value,
+          document.getElementById('user-password').value,
+          document.getElementById('user-email').value,
+          document.getElementById('user-role').value,
+          selectedPermissions // Pasar los permisos seleccionados
+        );
+        // Resetear checkboxes a checked por defecto para el siguiente usuario
+        document.querySelectorAll('.user-permission-checkbox').forEach(cb => cb.checked = true);
+
+        document.getElementById('modal-new-user').classList.add('hidden');
+        e.target.reset();
+        alert('✅ Usuario creado. Debe verificar su correo para activar.');
+        loadUsers();
+      } catch(err) { alert('Error: ' + err.message); }
+    });
+
+    document.getElementById('sale-product').addEventListener('change', function() {
+      const selected = this.options[this.selectedIndex];
+      const stockDisplay = document.getElementById('sale-stock-display');
+      
+      if (selected && selected.value) {
+        const stock = parseFloat(selected.dataset.stock || 0);
+        if (selected.dataset.price) document.getElementById('sale-price').value = selected.dataset.price;
+        
+        stockDisplay.textContent = `Stock disponible: ${stock}`;
+        stockDisplay.style.color = stock <= 0 ? 'var(--danger)' : 'var(--primary)';
+      } else {
+        stockDisplay.textContent = '';
+      }
+    });
+
+    document.getElementById('btnGenerateAccountingReport').addEventListener('click', generateAccountingReport);
+    document.getElementById('btnPrintReport').addEventListener('click', () => window.print());
+
+    // Eventos Zona de Peligro
+    const clearTableAction = async (table, label) => {
+      if (confirm(`⚠️ ¿ESTÁS SEGURO? Esta acción borrará TODAS las ${label} del sistema.`)) {
+        const pass = prompt('Por seguridad, escribe "CONFIRMAR":');
+        if (pass === 'CONFIRMAR') {
+          try {
+            await truncateTable(table);
+            alert('✅ Registros eliminados correctamente.');
+            loadAllData();
+          } catch(err) { alert('Error: ' + err.message); }
+        }
+      }
+    };
+
+    document.getElementById('btnClearSales')?.addEventListener('click', () => clearTableAction('sales', 'ventas'));
+    document.getElementById('btnClearPurchases')?.addEventListener('click', () => clearTableAction('purchases', 'compras'));
+    document.getElementById('btnClearProducts')?.addEventListener('click', () => clearTableAction('products', 'productos'));
+
+    // Iniciar
+    checkAuth();
+  </script>
+</body>
+</html>

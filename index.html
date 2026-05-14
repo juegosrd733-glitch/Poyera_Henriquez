@@ -104,6 +104,7 @@
           <div class="stat-card"><h3 id="dash-weeklySales">RD$ 0</h3><p>📊 Ventas de la Semana</p></div>
           <div class="stat-card"><h3 id="dash-lowStock">0</h3><p>⚠️ Stock Bajo</p></div>
           <div class="stat-card"><h3 id="dash-pending">0</h3><p>💰 Cuentas por Cobrar</p></div>
+          <div class="stat-card"><h3 id="dash-cashBalance" style="color:var(--success)">RD$ 0</h3><p>💵 Saldo en Caja</p></div>
         </div>
         <div class="card"><h3>🕐 Actividad Reciente</h3><p id="recentActivity">Sistema listo. Iniciando sesión...</p></div>
       </section>
@@ -163,8 +164,20 @@
 
       <!-- Finances -->
       <section id="section-finances" class="section">
-        <h2>💰 Cuentas por Cobrar</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h2>💰 Finanzas y Caja</h2>
+          <button id="btnOpenNewMovement" class="btn-sm btn-success">➕ Nuevo Movimiento de Caja</button>
+        </div>
         <div class="card">
+          <h3>💵 Movimientos de Caja (Fondo e Ingresos/Egresos)</h3>
+          <div id="cash-balance-banner" style="padding:1rem; background:#f0fdf4; border-radius:8px; margin:1rem 0; font-weight:bold; color:var(--success); font-size:1.1rem">Saldo Disponible: RD$ 0.00</div>
+          <table>
+            <thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th>Monto</th><th>Acciones</th></tr></thead>
+            <tbody id="cashMovementsTableBody"><tr><td colspan="5">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>📝 Cuentas por Cobrar</h3>
           <table>
             <thead><tr><th>Cliente</th><th>Monto</th><th>Total Venta</th><th>Saldo</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody id="receivablesTableBody"><tr><td colspan="7">Cargando...</td></tr></tbody>
@@ -243,7 +256,7 @@
       <form id="form-new-product">
         <input type="hidden" id="prod-id">
         <input type="text" id="prod-name" placeholder="Nombre del Producto" required>
-        <select id="prod-type"><option value="Pollo entero">Pollo entero</option><option value="Pollo al detalle">Pollo al detalle</option><option value="Patas">Patas</option><option value="Molleja mixto pescueso">Molleja mixto pescueso</option><option value="Menuditos">Menuditos</option><option value="Hígado">Hígado</option><option value="Otro">Otro</option></select>
+        <select id="prod-type"><option value="Pollo entero">Pollo entero</option><option value="Pollo al detalle">Pollo al detalle</option><option value="Patas">Patas</option><option value="Molleja">Molleja</option><option value="Menuditos">Menuditos</option><option value="Hígado">Hígado</option><option value="Pescueso">Pescueso</option><option value="Otro">Otro</option></select>
         <input type="number" step="0.01" id="prod-cost" placeholder="Precio de Compra (RD$)" required>
         <input type="number" step="0.01" id="prod-price" placeholder="Precio de Venta (RD$)" required>
         <input type="number" step="0.01" id="prod-stock" placeholder="Stock Inicial" required>
@@ -318,6 +331,12 @@
         <input type="number" step="0.01" id="purchase-qty" placeholder="Cantidad" required>
         <input type="number" step="0.01" id="purchase-price" placeholder="Precio Unit. (RD$)" required>
         <input type="text" id="purchase-provider" placeholder="Proveedor">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--text);">
+            <input type="checkbox" id="purchase-use-cash" style="width: auto; margin-bottom: 0;" checked>
+            Pagar con dinero de caja (Registrar egreso)
+          </label>
+        </div>
         <button type="submit">📥 Registrar Compra</button>
       </form>
     </div>
@@ -351,12 +370,27 @@
     </div>
   </div>
 
+  <div id="modal-new-movement" class="modal hidden">
+    <div class="modal-content">
+      <button class="close-modal" data-close="modal-new-movement">✕</button>
+      <h3>➕ Registrar Movimiento de Caja</h3>
+      <form id="form-new-movement">
+        <input type="text" id="move-desc" placeholder="Descripción (Ej: Fondo Inicial)" required>
+        <select id="move-type"><option value="ingreso">🟢 Ingreso (Dinero entra)</option><option value="egreso">🔴 Egreso (Gasto/Salida)</option></select>
+        <input type="number" step="0.01" id="move-amount" placeholder="Monto (RD$)" required>
+        <p style="font-size:0.75rem; color:#666; margin-bottom:1rem">Usa esto para fondo inicial, préstamos o gastos que no son compras de mercancía.</p>
+        <button type="submit">💾 Guardar Movimiento</button>
+      </form>
+    </div>
+  </div>
+
   <!-- SCRIPT PRINCIPAL -->
   <script type="module">
     import {
       signIn, signOut, getCurrentUser, getProducts, upsertProduct, deleteProduct,
       getSales, registerSale, updateSale, deleteSale, getPurchases, registerPurchase, updatePurchase, deletePurchase,
-      getAccountsReceivable, updateAccountReceivable, deleteAccountReceivable, getUsersWithProfiles, updateUserProfile, deleteUserProfile, signUp, truncateTable
+      getAccountsReceivable, updateAccountReceivable, deleteAccountReceivable, getUsersWithProfiles, updateUserProfile, deleteUserProfile, signUp, truncateTable,
+      getCashMovements, registerCashMovement, deleteCashMovement
     } from './supabase_service.js';
 
     const loginScreen = document.getElementById('loginScreen');
@@ -442,9 +476,10 @@
     document.getElementById('btnOpenNewSale').addEventListener('click', () => document.getElementById('modal-new-sale').classList.remove('hidden'));
     document.getElementById('btnOpenNewPurchase').addEventListener('click', () => document.getElementById('modal-new-purchase').classList.remove('hidden'));
     document.getElementById('btnOpenNewUser').addEventListener('click', () => document.getElementById('modal-new-user').classList.remove('hidden'));
+    document.getElementById('btnOpenNewMovement').addEventListener('click', () => document.getElementById('modal-new-movement').classList.remove('hidden'));
 
     async function loadAllData() {
-      await Promise.all([loadProducts(), loadSales(), loadPurchases(), loadInventory(), loadReceivables(), loadUsers()]);
+      await Promise.all([loadProducts(), loadSales(), loadPurchases(), loadInventory(), loadReceivables(), loadUsers(), loadCashMovements()]);
       updateDashboard();
     }
 
@@ -628,6 +663,44 @@
       });
     }
 
+    async function loadCashMovements() {
+      const movements = await getCashMovements();
+      const tbody = document.getElementById('cashMovementsTableBody');
+      
+      // Calcular Saldo Total
+      const totalBalance = movements.reduce((acc, m) => 
+        m.type === 'ingreso' ? acc + Number(m.amount) : acc - Number(m.amount), 0
+      );
+      document.getElementById('cash-balance-banner').textContent = `Saldo Disponible: RD$ ${totalBalance.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+      document.getElementById('dash-cashBalance').textContent = `RD$ ${totalBalance.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`;
+
+      tbody.innerHTML = movements.length ? '' : '<tr><td colspan="5">No hay movimientos registrados</td></tr>';
+      movements.forEach(m => {
+        const typeLabel = m.type === 'ingreso' ? '<span style="color:var(--success)">Ingreso</span>' : '<span style="color:var(--danger)">Egreso</span>';
+        const amountColor = m.type === 'ingreso' ? 'var(--success)' : 'var(--danger)';
+        let actions = isAdmin ? `<button class="btn-sm btn-danger btn-delete-move" data-id="${m.id}">Eliminar</button>` : '-';
+        
+        tbody.innerHTML += `<tr>
+          <td>${new Date(m.created_at).toLocaleDateString()}</td>
+          <td>${m.description}</td>
+          <td>${typeLabel}</td>
+          <td style="font-weight:bold; color:${amountColor}">RD$ ${m.amount.toFixed(2)}</td>
+          <td>${actions}</td>
+        </tr>`;
+      });
+
+      tbody.querySelectorAll('.btn-delete-move').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (confirm('¿Eliminar este movimiento de caja?')) {
+            try {
+              await deleteCashMovement(btn.dataset.id);
+              loadCashMovements();
+            } catch(err) { alert('Error: ' + err.message); }
+          }
+        });
+      });
+    }
+
     async function loadUsers() {
       const users = await getUsersWithProfiles();
       const tbody = document.getElementById('usersTableBody');
@@ -769,6 +842,21 @@
       loadAllData();
     });
 
+    document.getElementById('form-new-movement').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await registerCashMovement({
+          description: document.getElementById('move-desc').value,
+          type: document.getElementById('move-type').value,
+          amount: parseFloat(document.getElementById('move-amount').value)
+        });
+        document.getElementById('modal-new-movement').classList.add('hidden');
+        e.target.reset();
+        loadCashMovements();
+        updateDashboard();
+      } catch(err) { alert('Error: ' + err.message); }
+    });
+
     document.getElementById('form-new-sale').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
@@ -845,11 +933,17 @@
       try {
         const qty = parseFloat(document.getElementById('purchase-qty').value);
         const price = parseFloat(document.getElementById('purchase-price').value);
+        
+        if (isNaN(qty) || isNaN(price) || qty <= 0 || price <= 0) throw new Error('Por favor ingresa una cantidad y precio válidos.');
+
+        const deductFromCash = document.getElementById('purchase-use-cash').checked;
+        
         await registerPurchase({
           product_id: document.getElementById('purchase-product').value,
           qty, price, total: qty * price,
           provider: document.getElementById('purchase-provider').value
-        });
+        }, deductFromCash);
+
         document.getElementById('modal-new-purchase').classList.add('hidden');
         e.target.reset();
         loadAllData();

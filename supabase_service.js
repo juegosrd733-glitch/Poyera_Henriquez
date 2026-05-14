@@ -137,16 +137,37 @@ export async function getPurchases() {
   return data || [];
 }
 
-export async function registerPurchase(purchaseData) {
-  // Obtener stock actual
+export async function registerPurchase(purchaseData, deductFromCash = true) {
+  // Obtener stock, nombre y unidad para la descripción del movimiento
   const { data: product } = await supabase.from('products')
-    .select('stock').eq('id', purchaseData.product_id).single();
+    .select('name, stock, unit').eq('id', purchaseData.product_id).single();
   const currentStock = product?.stock || 0;
+
+  // Si se marcó pagar con caja, validar saldo suficiente antes de proceder
+  if (deductFromCash) {
+    const balance = await getCashBalance();
+
+    if (Number(balance) < Number(purchaseData.total)) {
+      throw new Error(`Saldo insuficiente en fondo de caja. Disponible: RD$ ${balance.toFixed(2)}`);
+    }
+  }
 
   // Registrar compra
   const { data: purchase, error } = await supabase.from('purchases')
     .insert([purchaseData]).select();
   if (error) throw error;
+
+  // Si se marcó pagar con caja, registrar el egreso
+  if (deductFromCash && purchase && purchase.length > 0) {
+    const { error: moveError } = await supabase.from('cash_movements').insert([{
+      type: 'egreso',
+      description: `Pago compra: ${product?.name || 'Producto'} (${purchaseData.qty} ${product?.unit || ''})`,
+      amount: Number(purchaseData.total),
+      purchase_id: purchase[0].id
+    }]);
+
+    if (moveError) throw new Error('Compra registrada, pero error al descontar de caja: ' + moveError.message);
+  }
 
   // Actualizar stock del producto
   await supabase.from('products')
@@ -201,6 +222,32 @@ export async function updateAccountReceivable(id, updateData) {
 
 export async function deleteAccountReceivable(id) {
   const { error } = await supabase.from('accounts_receivable').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// 💰 MOVIMIENTOS DE CAJA (FONDO INICIAL / GASTOS)
+export async function getCashMovements() {
+  const { data, error } = await supabase.from('cash_movements')
+    .select('*').order('created_at', { ascending: false });
+  if (error) console.error('Error al obtener movimientos de caja:', error);
+  return data || [];
+}
+
+export async function getCashBalance() {
+  const movements = await getCashMovements();
+  return movements.reduce((acc, m) => 
+    m.type === 'ingreso' ? acc + Number(m.amount) : acc - Number(m.amount), 0
+  );
+}
+
+export async function registerCashMovement(movementData) {
+  const { data, error } = await supabase.from('cash_movements').insert([movementData]).select();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCashMovement(id) {
+  const { error } = await supabase.from('cash_movements').delete().eq('id', id);
   if (error) throw error;
 }
 

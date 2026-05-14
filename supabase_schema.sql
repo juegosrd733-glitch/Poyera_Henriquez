@@ -62,16 +62,39 @@ CREATE TABLE public.profiles (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 6. Tabla de Movimientos de Caja (Fondos, gastos varios, etc.)
+CREATE TABLE public.cash_movements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    type TEXT NOT NULL CHECK (type IN ('ingreso', 'egreso')),
+    description TEXT NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    purchase_id UUID REFERENCES public.purchases(id) ON DELETE CASCADE
+);
+
 -- Habilitar RLS (Seguridad a Nivel de Fila)
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts_receivable ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cash_movements ENABLE ROW LEVEL SECURITY;
 
 -- Políticas básicas de acceso para usuarios autenticados
-CREATE POLICY "Acceso total a productos para autenticados" ON public.products FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Acceso total a ventas para autenticados" ON public.sales FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Acceso total a compras para autenticados" ON public.purchases FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Acceso total a cuentas por cobrar para autenticados" ON public.accounts_receivable FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Usuarios gestionan su propio perfil" ON public.profiles FOR ALL USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Acceso total a productos para autenticados" ON public.products;
+CREATE POLICY "Acceso total a productos para autenticados" ON public.products FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acceso total a ventas para autenticados" ON public.sales;
+CREATE POLICY "Acceso total a ventas para autenticados" ON public.sales FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acceso total a compras para autenticados" ON public.purchases;
+CREATE POLICY "Acceso total a compras para autenticados" ON public.purchases FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acceso total a cuentas por cobrar para autenticados" ON public.accounts_receivable;
+CREATE POLICY "Acceso total a cuentas por cobrar para autenticados" ON public.accounts_receivable FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acceso total a movimientos de caja para autenticados" ON public.cash_movements;
+CREATE POLICY "Acceso total a movimientos de caja para autenticados" ON public.cash_movements FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Usuarios gestionan su propio perfil" ON public.profiles;
+CREATE POLICY "Usuarios gestionan su propio perfil" ON public.profiles FOR ALL TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);

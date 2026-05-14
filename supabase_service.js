@@ -60,41 +60,63 @@ export async function deleteProduct(id) {
 // 🧾 VENTAS
 export async function getSales() {
   const { data, error } = await supabase.from('sales')
-    .select('*, products(name, unit, price)').order('sale_date', { ascending: false });
+    .select('*, sale_items(*, products(name))').order('sale_date', { ascending: false });
   if (error) console.error('Error al obtener ventas:', error);
   return data || [];
 }
 
 export async function registerSale(saleData) {
-  // Validar producto existe
-  const { data: product, error: prodError } = await supabase.from('products')
-    .select('cost, stock, price').eq('id', saleData.product_id).single();
-  if (prodError || !product) throw new Error('Producto no encontrado');
+  const { items, ...header } = saleData;
+  let totalProfit = 0;
 
-  // Validar si hay stock suficiente
-  if (Number(product.stock) < Number(saleData.qty)) {
-    throw new Error(`Stock insuficiente. Disponible: ${product.stock}`);
+  // 1. Registrar el encabezado de la venta
+  const { data: sale, error: saleError } = await supabase.from('sales')
+    .insert([header]).select();
+  if (saleError) throw saleError;
+  const saleId = sale[0].id;
+
+  // 2. Procesar cada producto
+  for (const item of items) {
+    const { data: product } = await supabase.from('products')
+      .select('cost, stock').eq('id', item.product_id).single();
+    
+    if (!product || Number(product.stock) < Number(item.qty)) {
+      throw new Error(`Stock insuficiente para uno de los productos.`);
+    }
+
+    const itemProfit = (item.price - product.cost) * item.qty;
+    totalProfit += itemProfit;
+
+    // Registrar item
+    const { error: itemError } = await supabase.from('sale_items').insert([{
+      sale_id: saleId,
+      product_id: item.product_id,
+      qty: item.qty,
+      price: item.price,
+      profit: itemProfit
+    }]);
+    if (itemError) throw itemError;
+
+    // Actualizar stock
+    const { error: stockError } = await supabase.from('products')
+      .update({ stock: Number(product.stock) - Number(item.qty) })
+      .eq('id', item.product_id);
+    if (stockError) throw stockError;
   }
 
-  // Calcular ganancia
-  const profit = (saleData.price - product.cost) * saleData.qty;
-  
-  // Registrar venta
-  const { data: sale, error: saleError } = await supabase.from('sales')
-    .insert([{ ...saleData, profit }]).select();
-  if (saleError) throw saleError;
-
-  // Actualizar stock (evitar negativos)
-  const newStock = Number(product.stock) - Number(saleData.qty);
-  await supabase.from('products').update({ stock: newStock }).eq('id', saleData.product_id);
+  // 3. Actualizar la ganancia total en el encabezado
+  const { error: profitError } = await supabase.from('sales')
+    .update({ profit: totalProfit })
+    .eq('id', saleId);
+  if (profitError) throw profitError;
 
   // Si es crédito, crear cuenta por cobrar
-  if (saleData.payment_type === 'credito' && sale?.length > 0) {
+  if (header.payment_type === 'credito') {
     await supabase.from('accounts_receivable').insert([{
-      sale_id: sale[0].id,
-      client_name: saleData.credit_client_name || 'Cliente Anónimo',
-      amount: saleData.total,
-      balance: saleData.total,
+      sale_id: saleId,
+      client_name: header.credit_client_name || 'Cliente Anónimo',
+      amount: header.total,
+      balance: header.total,
       status: 'pending'
     }]);
   }
@@ -108,25 +130,24 @@ export async function updateSale(id, updateData) {
 }
 
 export async function deleteSale(id) {
-  // 1. Obtener detalles de la venta para restaurar stock
-  const { data: sale, error: saleError } = await supabase.from('sales')
-    .select('product_id, qty').eq('id', id).single();
-  if (saleError || !sale) throw new Error('Venta no encontrada');
+  // 1. Obtener los items para devolver el stock
+  const { data: items } = await supabase.from('sale_items')
+    .select('product_id, qty').eq('sale_id', id);
 
-  // 2. Obtener stock actual del producto
-  const { data: product, error: prodError } = await supabase.from('products')
-    .select('stock').eq('id', sale.product_id).single();
-  if (prodError || !product) throw new Error('Producto no encontrado');
+  if (items) {
+    for (const item of items) {
+      const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product_id).single();
+      if (prod) {
+        await supabase.from('products')
+          .update({ stock: Number(prod.stock) + Number(item.qty) })
+          .eq('id', item.product_id);
+      }
+    }
+  }
 
-  // 3. Eliminar la venta (el esquema SQL borrará la cuenta por cobrar en cascada)
+  // 2. Eliminar la venta (borrado en cascada afectará items y cuentas por cobrar)
   const { error: delError } = await supabase.from('sales').delete().eq('id', id);
   if (delError) throw delError;
-
-  // 4. Restaurar el stock al producto
-  const { error: updateError } = await supabase.from('products')
-    .update({ stock: Number(product.stock) + Number(sale.qty) })
-    .eq('id', sale.product_id);
-  if (updateError) throw updateError;
 }
 
 // 📥 COMPRAS

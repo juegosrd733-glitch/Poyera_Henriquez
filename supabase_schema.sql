@@ -18,17 +18,25 @@ CREATE TABLE public.products (
 -- 2. Tabla de Ventas
 CREATE TABLE public.sales (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
-    qty NUMERIC(15, 4) NOT NULL,
-    price NUMERIC(15, 2) NOT NULL, -- Precio al momento de la venta
     total NUMERIC(15, 2) NOT NULL,
     payment_type TEXT NOT NULL CHECK (payment_type IN ('efectivo', 'tarjeta', 'credito')),
-    payment NUMERIC(15, 2) DEFAULT 0, -- Monto de compra (total ingresado)
-    cash NUMERIC(15, 2) DEFAULT 0,    -- Efectivo recibido
+    payment NUMERIC(15, 2) DEFAULT 0,
+    cash NUMERIC(15, 2) DEFAULT 0,
     change NUMERIC(15, 2) DEFAULT 0,  -- Cambio devuelto
     credit_client_name TEXT,          -- Nombre del cliente si es crédito
     profit NUMERIC(15, 2) DEFAULT 0,  -- Ganancia calculada (venta - costo)
     sale_date TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2.1 Detalle de Ventas (Para múltiples productos por venta)
+CREATE TABLE public.sale_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sale_id UUID REFERENCES public.sales(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    qty NUMERIC(15, 4) NOT NULL,
+    price NUMERIC(15, 2) NOT NULL,
+    profit NUMERIC(15, 2) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- 3. Tabla de Compras
@@ -75,6 +83,7 @@ CREATE TABLE public.cash_movements (
 -- Habilitar RLS (Seguridad a Nivel de Fila)
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts_receivable ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -86,6 +95,9 @@ CREATE POLICY "Acceso total a productos para autenticados" ON public.products FO
 
 DROP POLICY IF EXISTS "Acceso total a ventas para autenticados" ON public.sales;
 CREATE POLICY "Acceso total a ventas para autenticados" ON public.sales FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Acceso total a detalles de venta para autenticados" ON public.sale_items;
+CREATE POLICY "Acceso total a detalles de venta para autenticados" ON public.sale_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Acceso total a compras para autenticados" ON public.purchases;
 CREATE POLICY "Acceso total a compras para autenticados" ON public.purchases FOR ALL TO authenticated USING (true) WITH CHECK (true);
